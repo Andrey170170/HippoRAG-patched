@@ -153,6 +153,80 @@ uv run python main.py --config configs/openrouter.sample.yaml
 
 CLI flags override YAML values when both are provided.
 
+### Using HippoRAG as a Python Library
+
+If you are integrating HippoRAG into another Python project, the recommended pattern is to create a `BaseConfig` in your application and pass it to `HippoRAG(global_config=...)`.
+
+#### Option 1: configure directly in Python
+
+```python
+from hipporag import HippoRAG, BaseConfig
+
+config = BaseConfig(
+    save_dir="outputs/my_app",
+    llm_provider="openrouter",
+    llm_name="openai/gpt-4o-mini",
+    embedding_provider="openrouter",
+    embedding_model_name="openai/text-embedding-3-small",
+    openie_mode="online",
+    max_qa_steps=3,
+    embedding_batch_size=8,
+)
+
+hipporag = HippoRAG(global_config=config)
+```
+
+#### Option 2: load config from YAML inside your app
+
+```python
+from hipporag import HippoRAG, BaseConfig
+
+config = BaseConfig.from_yaml("configs/openrouter.sample.yaml")
+hipporag = HippoRAG(global_config=config)
+```
+
+#### Option 3: load YAML, then override selected fields in code
+
+```python
+from hipporag import HippoRAG, BaseConfig
+
+base_config = BaseConfig.from_yaml("configs/openrouter.sample.yaml")
+config = base_config.merged_with({
+    "save_dir": "outputs/request_123",
+    "max_qa_steps": 2,
+})
+
+hipporag = HippoRAG(global_config=config)
+```
+
+#### YAML structure
+
+```yaml
+llm:
+  provider: openrouter
+  model: openai/gpt-4o-mini
+  api_key_env: OPENROUTER_API_KEY
+
+embedding:
+  provider: openrouter
+  model: openai/text-embedding-3-small
+  api_key_env: OPENROUTER_API_KEY
+
+runtime:
+  save_dir: outputs/my_app
+  openie_mode: online
+  max_qa_steps: 3
+  embedding_batch_size: 8
+```
+
+For OpenRouter-based usage, set:
+
+```sh
+export OPENROUTER_API_KEY=<your openrouter api key>
+```
+
+In library usage, prefer `global_config=BaseConfig(...)` over passing many constructor overrides individually.
+
 ### Local Deployment (vLLM)
 
 This simple example will illustrate how to use `hipporag` with any vLLM-compatible locally deployed LLM.
