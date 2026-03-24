@@ -41,25 +41,33 @@ categories, bringing it one step closer to true long-term memory.
 ## Installation
 
 ```sh
-conda create -n hipporag python=3.10
-conda activate hipporag
-pip install hipporag
+uv python install 3.10
+uv venv --python 3.10
+source .venv/bin/activate
+uv sync
 ```
+
+Build distributables with:
+
+```sh
+uv build
+```
+
 Initialize the environmental variables and activate the environment:
 
 ```sh
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export HF_HOME=<path to Huggingface home directory>
-export OPENAI_API_KEY=<your openai api key>   # if you want to use OpenAI model
+export OPENROUTER_API_KEY=<your openrouter api key>
 
-conda activate hipporag
+source .venv/bin/activate
 ```
 
 ## Quick Start
 
-### OpenAI Models
+### OpenRouter Models
 
-This simple example will illustrate how to use `hipporag` with any OpenAI model:
+This simple example will illustrate how to use `hipporag` with OpenRouter for both chat and embeddings:
 
 ```python
 from hipporag import HippoRAG
@@ -78,8 +86,8 @@ docs = [
 ]
 
 save_dir = 'outputs'# Define save directory for HippoRAG objects (each LLM/Embedding model combination will create a new subdirectory)
-llm_model_name = 'gpt-4o-mini' # Any OpenAI model name
-embedding_model_name = 'nvidia/NV-Embed-v2'# Embedding model name (NV-Embed, GritLM or Contriever for now)
+llm_model_name = 'openai/gpt-4o-mini' # Any OpenRouter model id
+embedding_model_name = 'openai/text-embedding-3-small' # Any OpenRouter embedding model id
 
 #Startup a HippoRAG instance
 hipporag = HippoRAG(save_dir=save_dir, 
@@ -123,9 +131,9 @@ rag_results = hipporag.rag_qa(queries=queries,
                               gold_answers=answers)
 ```
 
-#### Example (OpenAI Compatible Embeddings)
+#### Example (OpenAI-Compatible Remote Providers)
 
-If you want to use LLMs and Embeddings Compatible to OpenAI, please use the following methods.</p>
+If you want to use a different OpenAI-compatible remote provider, please use the following methods.</p>
     
 ```python
 hipporag = HippoRAG(save_dir=save_dir, 
@@ -134,6 +142,16 @@ hipporag = HippoRAG(save_dir=save_dir,
     embedding_model_name='Your Embedding model name',  
     embedding_base_url='Your Embedding model url')
 ```
+
+### YAML Config
+
+HippoRAG now supports YAML-based runtime configuration. See `configs/openrouter.sample.yaml` for a ready-to-edit example.
+
+```sh
+uv run python main.py --config configs/openrouter.sample.yaml
+```
+
+CLI flags override YAML values when both are provided.
 
 ### Local Deployment (vLLM)
 
@@ -226,18 +244,18 @@ Initialize the environmental variables and activate the environment:
 ```sh
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export HF_HOME=<path to Huggingface home directory>
-export OPENAI_API_KEY=<your openai api key>   # if you want to use OpenAI model
+export OPENROUTER_API_KEY=<your openrouter api key>
 
-conda activate hipporag
+source .venv/bin/activate
 ```
 
-### Run with OpenAI Model
+### Run with OpenRouter Model
 
 ```sh
 dataset=sample  # or any other dataset under `reproduce/dataset`
 
-# Run OpenAI model
-python main.py --dataset $dataset --llm_base_url https://api.openai.com/v1 --llm_name gpt-4o-mini --embedding_name nvidia/NV-Embed-v2
+# Run OpenRouter for both chat and embeddings
+uv run python main.py --dataset $dataset --llm_name openai/gpt-4o-mini --embedding_name openai/text-embedding-3-small
 ```
 
 ### Run with vLLM (Llama)
@@ -263,6 +281,9 @@ export HF_HOME=<path to Huggingface home directory>
 dataset=sample
 
 python main.py --dataset $dataset --llm_base_url http://localhost:8000/v1 --llm_name meta-llama/Llama-3.3-70B-Instruct --embedding_name nvidia/NV-Embed-v2
+
+# Or keep the LLM local while still using OpenRouter embeddings
+uv run python main.py --dataset $dataset --llm_provider openai_compatible --llm_base_url http://localhost:8000/v1 --llm_name meta-llama/Llama-3.3-70B-Instruct --embedding_provider openrouter --embedding_name openai/text-embedding-3-small
 ```
 
 #### Advanced: Run with vLLM offline batch

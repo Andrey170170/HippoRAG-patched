@@ -12,7 +12,18 @@ from ..utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def _get_embedding_model_class(embedding_model_name: str = "nvidia/NV-Embed-v2"):
+def _get_embedding_model_class(
+    embedding_model_name: str = "nvidia/NV-Embed-v2", global_config=None
+):
+    if global_config is not None and hasattr(
+        global_config, "resolved_embedding_provider"
+    ):
+        embedding_provider = global_config.resolved_embedding_provider()
+    else:
+        embedding_provider = getattr(global_config, "embedding_provider", "auto")
+
+    if embedding_provider in {"openrouter", "openai", "azure", "openai_compatible"}:
+        return OpenAIEmbeddingModel
     if "GritLM" in embedding_model_name:
         return GritLMEmbeddingModel
     elif "NV-Embed-v2" in embedding_model_name:

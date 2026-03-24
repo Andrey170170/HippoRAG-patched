@@ -1,0 +1,21 @@
+llm:
+  provider: openrouter
+  model: openai/gpt-4o-mini
+  api_key_env: OPENROUTER_API_KEY
+  headers:
+    HTTP-Referer: https://example.com
+    X-OpenRouter-Title: HippoRAG
+
+embedding:
+  provider: openrouter
+  model: openai/text-embedding-3-small
+  api_key_env: OPENROUTER_API_KEY
+
+runtime:
+  dataset: sample
+  save_dir: outputs/sample_openrouter
+  openie_mode: online
+  max_qa_steps: 3
+  embedding_batch_size: 8
+  force_index_from_scratch: false
+  force_openie_from_scratch: false

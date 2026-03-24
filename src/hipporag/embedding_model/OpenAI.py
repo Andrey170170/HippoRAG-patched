@@ -1,5 +1,7 @@
 from copy import deepcopy
+from dataclasses import asdict
 from typing import List, Optional
+from urllib.parse import parse_qs, urlparse
 
 import numpy as np
 import torch
@@ -14,30 +16,60 @@ from .base import BaseEmbeddingModel, EmbeddingConfig, make_cache_embed
 
 logger = get_logger(__name__)
 
-class OpenAIEmbeddingModel(BaseEmbeddingModel):
 
-    def __init__(self, global_config: Optional[BaseConfig] = None, embedding_model_name: Optional[str] = None) -> None:
+class OpenAIEmbeddingModel(BaseEmbeddingModel):
+    def __init__(
+        self,
+        global_config: Optional[BaseConfig] = None,
+        embedding_model_name: Optional[str] = None,
+    ) -> None:
         super().__init__(global_config=global_config)
 
         if embedding_model_name is not None:
             self.embedding_model_name = embedding_model_name
             logger.debug(
-                f"Overriding {self.__class__.__name__}'s embedding_model_name with: {self.embedding_model_name}")
+                f"Overriding {self.__class__.__name__}'s embedding_model_name with: {self.embedding_model_name}"
+            )
 
         self._init_embedding_config()
 
         # Initializing the embedding model
         logger.debug(
-            f"Initializing {self.__class__.__name__}'s embedding model with params: {self.embedding_config.model_init_params}")
+            f"Initializing {self.__class__.__name__}'s embedding model with params: {self.embedding_config.model_init_params}"
+        )
 
-        if self.global_config.azure_embedding_endpoint is None:
-            self.client = OpenAI(
-                base_url=self.global_config.embedding_base_url
+        if self.global_config.resolved_embedding_provider() == "azure":
+            if self.global_config.azure_embedding_endpoint is None:
+                raise ValueError(
+                    "azure_embedding_endpoint must be configured when embedding_provider='azure'."
+                )
+            api_key = self.global_config.resolve_embedding_api_key()
+            api_version = self._extract_api_version(
+                self.global_config.azure_embedding_endpoint,
+                self.global_config.embedding_api_version,
+            )
+            self.client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=self.global_config.azure_embedding_endpoint,
             )
         else:
-            self.client = AzureOpenAI(api_version=self.global_config.azure_embedding_endpoint.split('api-version=')[1],
-                                      azure_endpoint=self.global_config.azure_embedding_endpoint)
+            api_key = self.global_config.resolve_embedding_api_key()
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url=self.global_config.embedding_base_url,
+                default_headers=self.global_config.llm_headers or None,
+            )
 
+    def _extract_api_version(
+        self, endpoint: str, configured_version: Optional[str]
+    ) -> Optional[str]:
+        if configured_version:
+            return configured_version
+
+        parsed = urlparse(endpoint)
+        versions = parse_qs(parsed.query).get("api-version")
+        return versions[0] if versions else None
 
     def _init_embedding_config(self) -> None:
         """
@@ -47,45 +79,54 @@ class OpenAIEmbeddingModel(BaseEmbeddingModel):
             None
         """
 
-        config_dict = {
-            "embedding_model_name": self.embedding_model_name,
-            "norm": self.global_config.embedding_return_as_normalized,
-            # "max_seq_length": self.global_config.embedding_max_seq_len,
-            "model_init_params": {
-                # "model_name_or_path": self.embedding_model_name2mode_name_or_path[self.embedding_model_name],
-                "pretrained_model_name_or_path": self.embedding_model_name,
-                "trust_remote_code": True,
-                # "torch_dtype": "auto",
-                'device_map': "auto",  # added this line to use multiple GPUs
-                # **kwargs
-            },
-            "encode_params": {
-                "max_length": self.global_config.embedding_max_seq_len,  # 32768 from official example,
-                "instruction": "",
-                "batch_size": self.global_config.embedding_batch_size,
-                "num_workers": 32
-            },
-        }
+        config_dict = asdict(self.global_config)
+        config_dict.update(
+            {
+                "embedding_model_name": self.embedding_model_name,
+                "norm": self.global_config.embedding_return_as_normalized,
+                # "max_seq_length": self.global_config.embedding_max_seq_len,
+                "model_init_params": {
+                    # "model_name_or_path": self.embedding_model_name2mode_name_or_path[self.embedding_model_name],
+                    "pretrained_model_name_or_path": self.embedding_model_name,
+                    "trust_remote_code": True,
+                    # "torch_dtype": "auto",
+                    "device_map": "auto",  # added this line to use multiple GPUs
+                    # **kwargs
+                },
+                "encode_params": {
+                    "max_length": self.global_config.embedding_max_seq_len,  # 32768 from official example,
+                    "instruction": "",
+                    "batch_size": self.global_config.embedding_batch_size,
+                    "num_workers": 32,
+                },
+            }
+        )
 
         self.embedding_config = EmbeddingConfig.from_dict(config_dict=config_dict)
-        logger.debug(f"Init {self.__class__.__name__}'s embedding_config: {self.embedding_config}")
+        logger.debug(
+            f"Init {self.__class__.__name__}'s embedding_config: {self.embedding_config}"
+        )
 
     def encode(self, texts: List[str]):
         texts = [t.replace("\n", " ") for t in texts]
-        texts = [t if t != '' else ' ' for t in texts]
-        response = self.client.embeddings.create(input=texts, model=self.embedding_model_name)
+        texts = [t if t != "" else " " for t in texts]
+        response = self.client.embeddings.create(
+            input=texts, model=self.embedding_model_name
+        )
         results = np.array([v.embedding for v in response.data])
 
         return results
 
     def batch_encode(self, texts: List[str], **kwargs) -> None:
-        if isinstance(texts, str): texts = [texts]
+        if isinstance(texts, str):
+            texts = [texts]
 
         params = deepcopy(self.embedding_config.encode_params)
-        if kwargs: params.update(kwargs)
+        if kwargs:
+            params.update(kwargs)
 
         if "instruction" in kwargs:
-            if kwargs["instruction"] != '':
+            if kwargs["instruction"] != "":
                 params["instruction"] = f"Instruct: {kwargs['instruction']}\nQuery: "
             # del params["instruction"]
 
@@ -99,11 +140,13 @@ class OpenAIEmbeddingModel(BaseEmbeddingModel):
             pbar = tqdm(total=len(texts), desc="Batch Encoding")
             results = []
             for i in range(0, len(texts), batch_size):
-                batch = texts[i:i + batch_size]
+                batch = texts[i : i + batch_size]
                 try:
                     results.append(self.encode(batch))
-                except:
-                    import ipdb; ipdb.set_trace()
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Failed to encode embedding batch {i}:{i + len(batch)}"
+                    ) from exc
                 pbar.update(batch_size)
             pbar.close()
             results = np.concatenate(results)

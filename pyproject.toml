@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hipporag"
+version = "2.0.0a4"
+description = "A powerful graph-based RAG framework that enables LLMs to identify and leverage connections within new knowledge for improved retrieval."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Bernal Jimenez Gutierrez", email = "jimenezgutierrez.1@osu.edu" },
+]
+dependencies = [
+  "boto3>=1.35,<2",
+  "einops>=0.8,<1",
+  "filelock>=3.16,<4",
+  "gritlm>=1.0.2,<2",
+  "httpx>=0.28,<1",
+  "litellm>=1.73.1,<2",
+  "nest-asyncio>=1.6,<2",
+  "networkx>=3.4,<4",
+  "numpy>=1.26,<3",
+  "openai>=1.91.1,<2",
+  "outlines>=0.1,<1",
+  "packaging>=24,<26",
+  "pandas>=2.2,<3",
+  "pydantic>=2.10.4,<3",
+  "python-igraph>=0.11.8,<1",
+  "pyyaml>=6.0,<7",
+  "requests>=2.32,<3",
+  "scipy>=1.13,<2",
+  "sentence-transformers>=3.0,<4",
+  "tenacity>=8.5,<10",
+  "tiktoken>=0.7,<1",
+  "torch>=2.5.1,<2.8",
+  "tqdm>=4.66,<5",
+  "transformers>=4.45.2,<4.50",
+  "vllm>=0.6.6.post1,<0.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/OSU-NLP-Group/HippoRAG"
+Repository = "https://github.com/OSU-NLP-Group/HippoRAG"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hipporag = ["prompts/dspy_prompts/*.json"]
